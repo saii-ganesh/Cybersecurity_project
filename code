@@ -1,0 +1,69 @@
+from PIL import Image
+
+# Function to convert data to binary
+def to_bin(data):
+    if isinstance(data, str):
+        return ''.join([format(ord(i), '08b') for i in data])
+    elif isinstance(data, bytes) or isinstance(data, bytearray):
+        return [format(i, '08b') for i in data]
+    elif isinstance(data, int):
+        return format(data, '08b')
+    else:
+        raise TypeError("Input type not supported")
+
+# Function to hide data in an image
+def hide_data(image, data):
+    # Convert data to binary
+    binary_data = to_bin(data)
+    binary_data += '1111111111111110'  # Adding a delimiter to mark the end of the data
+
+    data_index = 0
+    data_len = len(binary_data)
+
+    img = Image.open(image)
+    pixels = img.load()
+
+    for row in range(img.size[1]):
+        for col in range(img.size[0]):
+            if data_index < data_len:
+                pixel = list(pixels[col, row])
+
+                # Change LSB of each color channel with data bits
+                for n in range(3):
+                    if data_index < data_len:
+                        pixel[n] = int(to_bin(pixel[n])[:-1] + binary_data[data_index], 2)
+                        data_index += 1
+
+                pixels[col, row] = tuple(pixel)
+
+    img.save('encoded_image.png')
+
+# Function to retrieve hidden data from an image
+def retrieve_data(image):
+    img = Image.open(image)
+    pixels = img.load()
+
+    binary_data = ""
+
+    for row in range(img.size[1]):
+        for col in range(img.size[0]):
+            pixel = pixels[col, row]
+            for n in range(3):
+                binary_data += to_bin(pixel[n])[-1]
+
+    # Split by 8-bits
+    all_bytes = [binary_data[i:i+8] for i in range(0, len(binary_data), 8)]
+
+    # Convert from bits to characters
+    decoded_data = ""
+    for byte in all_bytes:
+        decoded_data += chr(int(byte, 2))
+        if decoded_data[-2:] == '':  # Assuming delimiter is ''
+            break
+
+    return decoded_data[:-2]
+
+# Example usage
+hide_data('input_image.png', 'This is a hidden message')
+retrieved_message = retrieve_data('encoded_image.png')
+print("Retrieved message:", retrieved_message)
